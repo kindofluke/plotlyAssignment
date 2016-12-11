@@ -1,0 +1,77 @@
+---
+title: "plot.ly Assignment"
+author: "Luke Shulman"
+date: "12/11/2016"
+output: html_document
+---
+
+```{r setup, include=FALSE}
+knitr::opts_chunk$set(echo = TRUE)
+library(plotly)
+```
+
+## Patient Risk Scores 
+
+The following scatter plot reflects calculated risk of patient's future cost based on the [CMS-HCC](https://www.cms.gov/Medicare/Health-Plans/MedicareAdvtgSpecRateStats/Risk-Adjustors.html) algorithm. The patient data is taken form one of CMS' Public Use Files and are completely identified.
+
+The following code is used to merge the datasets(one for each year). I have outputted the summary. The risk algorithm was run on 114,000 synthetic patient records. 
+
+```{r dataload}
+
+result08 <- read.csv('../JupyterDemo/data/_2008Results.csv')
+result09 <- read.csv('../JupyterDemo/data/_2009Results.csv')
+result10 <- read.csv('../JupyterDemo/data/_2009Results.csv')
+result1 <- merge(result08[,c('HICNO','SCORE_INSTITUTIONAL')], result09[,c('HICNO','SCORE_INSTITUTIONAL')], by='HICNO', suffixes = c('08','09'))
+#result08[,c('HICNO','SCORE_INSTITUTIONAL')]
+#,'SCORE_INSTITUTIONAL']
+patResults <- merge(result1, result10[,c('HICNO','SCORE_INSTITUTIONAL')], by='HICNO', suffixes = c('a','10') )
+rm(result08, result09, result10, result1)
+summary(patResults)
+r08 <- hist(patResults[,'SCORE_INSTITUTIONAL08'], breaks=30, plot=FALSE)
+breaks08 <- r08$breaks
+mids08 <- r08$mids
+counts08 <- r08$counts
+r <- hist(patResults[,'SCORE_INSTITUTIONAL09'], breaks=breaks08, plot=FALSE)
+mids09 <- r$mids
+counts09 <- r$counts
+r <- hist(patResults[,'SCORE_INSTITUTIONAL'], breaks=breaks08, plot=FALSE)
+mids10 <- r$mids
+counts10 <- r$counts
+histdata <- data.frame(mids08, counts08, mids09, counts09, mids10, counts10)
+```
+
+
+## Grouped Bar Histogram 
+
+For the plot, I chose a histogram. I had assumed I would make it myself by placing bars at the midpoints outputted by the `hist` function. I then grouped the bars one for each year to show the changes.
+
+As shown, patients in 2010 were overall much riskier than in their previous years. This was not the most efficient way to create the plot. See below
+
+```{r patientplot, echo=TRUE}
+
+p <- plot_ly(histdata, x = ~mids08, y = ~counts08, type = 'bar', name = '2008 Risk Buckets', marker = list(color = '#ffea00')) %>%
+  add_trace(y = ~counts09, name = '2009 Risk Buckets', marker = list(color = '#00ffea')) %>%
+  add_trace(y = ~counts10, name = '2010 Risk Buckets', marker = list(color = '#ea00ff')) %>%
+  layout(yaxis = list(title = 'Number of Patients'), barmode = 'group', xaxis= list(title = 'Patient Risk Scores'))
+p
+```
+
+Note that the `echo = FALSE` parameter was added to the code chunk to prevent printing of the R code that generated the plot.
+
+##Overlay Histogram
+
+I later found that plot.ly has a built in Histogram function. (though not well documented in the R API). Here is the same data plotted as a histogram overlay. Same as the other chart, 2008 has more patients in the most numerous low-risk buckets with 2010 being a year when these patients produce more cost and healthcare risk. 
+
+I also applied a log scale to the Y-axis makes for a better distribution though it is deceiving. 
+
+```{r overlayplot}
+
+q <- plot_ly(alpha=.5) %>%
+  add_histogram(x = patResults[,'SCORE_INSTITUTIONAL08'], name= '2008 Risk Scores', autobinx=FALSE, xbins=list(start=0, end=9, size=.4)) %>%
+  add_histogram(x = patResults[,'SCORE_INSTITUTIONAL09'], name= '2009 Risk Scores', autobinx=FALSE, xbins=list(start=0, end=9, size=.4)) %>%
+  add_histogram(x = patResults[,'SCORE_INSTITUTIONAL'], name='2010 Risk Scores', autobinx=FALSE, xbins=list(start=0, end=9, size=.4)) %>%
+  layout(barmode = "overlay", yaxis = list(type='log', title="# of Patients Log Scale "),bargap=0.10)
+
+
+q
+```
